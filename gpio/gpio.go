@@ -4,14 +4,20 @@ package gpio
 import (
 	"fmt"
 //	"log"
+	"errors"
 	"os"
+	"time"
 	"unsafe"
 	"reflect"
 	"syscall"
+	"runtime"
 )
 
 //-----------------------------------------------------------------------------
 const (
+	LOCKFILE                = "/tmp/gpio.lock"
+	LOCKTIMEOUT             = 120
+	LOCKEXPIRE              = 300
 	BCM2708_PERI_BASE	= 0x3F000000
 	GPIO_BASE		= (BCM2708_PERI_BASE + 0x200000)
 	BLOCK_SIZE		= (4 * 1024)
@@ -64,6 +70,50 @@ func Setup() (err error){
 
 func Close() {
 	syscall.Munmap(mem8)
+}
+
+//-----------------------------------------------------------------------------
+func Gpio_lock()(error) {
+	pc, file, line, _ := runtime.Caller(1)
+
+	t1 := time.Now()
+	for stat, err := os.Stat(LOCKFILE); !os.IsNotExist(err); {
+		// Check if the lockfile is too old -> bug?
+		if (time.Now().Sub(stat.ModTime())).Seconds() > LOCKEXPIRE {
+			//break
+		}
+
+		t2 := time.Now()
+		if (t2.Sub(t1)).Seconds() > LOCKTIMEOUT {
+			return errors.New("gpio lock timeout")
+		}
+
+		time.Sleep(1 * time.Second)
+		fmt.Println("DEBUG: GPIO_LOCK at ", pc, file, line, "is waiting")
+		stat, err = os.Stat(LOCKFILE)
+	}
+
+	fd, _ := syscall.Open(LOCKFILE, syscall.O_CREAT | syscall.O_RDONLY, 0666)
+	defer syscall.Close(fd)
+
+	if err := syscall.Flock(fd, syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+		return err
+	}
+
+	fmt.Println("DEBUG: GPIO_LOCK at ", pc, file, line)
+
+	return nil
+}
+
+func Gpio_unlock()(error) {
+	pc, file, line, _ := runtime.Caller(1)
+
+	if err := os.Remove(LOCKFILE); err != nil {
+		return errors.New("gpio unlock failed")
+	}
+
+	fmt.Println("DEBUG: GPIO_UNLOCK at ", pc, file, line)
+	return nil
 }
 
 //-----------------------------------------------------------------------------
