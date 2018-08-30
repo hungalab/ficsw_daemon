@@ -228,7 +228,7 @@ func monitor_sock_conn(conn net.Conn, mon *FicStat) {
 
 	fmt.Println("FiCDaemon: Listen on ", LISTEN_ADDR)
 	for {
-		monitor_resp_ok(conn)
+		monitor_resp_ok(conn)	// Ready for recieve CMD
 		n, err := conn.Read(buf)
 		if n == 0 {
 			break
@@ -359,7 +359,7 @@ func monitor_sock_conn(conn net.Conn, mon *FicStat) {
 			}
 			fic_write8(uint16(addr), uint8(data))
 
-			// Register Read
+		// Register Read
 		case TERM_CMD_READ:
 			fmt.Println("DEBUG: READ")
 			if len(b) < 2 {
@@ -383,10 +383,10 @@ func monitor_sock_conn(conn net.Conn, mon *FicStat) {
 				break
 			}
 
-			fmt.Println(data)
+			// send back
 			conn.Write([]byte(strconv.FormatInt(int64(data), 16)+"\r\n"))
 
-			// FPGA reset
+		// FPGA reset
 		case TERM_CMD_INIT:
 			fmt.Println("DEBUG: INIT")
 			fic_fpga_init()
@@ -407,7 +407,7 @@ func init() {
 
 func main() {
 	 gpio.Setup()	// GPIO setup (mmap)
-	// monitor_daemon()
+	 monitor_daemon()
 
 	// ---- R/W test ----
 	// fmt.Printf("%x\n", fic_read8(0xfffc))
